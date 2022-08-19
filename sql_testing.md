@@ -1002,3 +1002,452 @@ from
 ) temp2
 group by rn
 ```
+
+# Using Distinct
+
+```sql
+
+```
+
+# Pretty cool for building a set of integers in increasing order
+
+```sql
+set @pattern = '';
+select pattern 
+from
+(
+    select
+        pattern,
+        char_length(pattern) as length
+    from(
+        select 
+            tt.row as myrow,
+            (@pattern := concat('',@pattern, '* ')) as pattern
+        from
+            (SELECT cast( concat(t.0,t2.0, t3.0) + 1 As UNSIGNED) as 'row' FROM 
+            (select 0 union select 1 union select 2 union select 3 union select 4 union select 5 union select 6 union select 7 union select 8 union select 9) t,
+            (select 0 union select 1 union select 2 union select 3 union select 4 union select 5 union select 6 union select 7 union select 8 union select 9) t2, 
+            (select 0 union select 1 union select 2 union select 3 union select 4 union select 5 union select 6 union select 7 union select 8 union select 9) t3
+            ) tt
+            order by tt.row
+            limit 20
+    ) as Patterns
+    order by length desc
+) as Julia
+```
+
+#  Nice Way to compute primes
+
+```sql
+--
+create table base_integers (
+    work_int integer
+);
+create table check_integers (
+    c_int integer
+);
+--
+insert into base_integers
+select *
+from
+(
+    select 
+        tt.row as work_int
+    from
+        (SELECT cast( concat(t.0,t2.0, t3.0) + 1 As UNSIGNED) as 'row' FROM 
+        (select 0 union select 1 union select 2 union select 3 union select 4 union select 5 union select 6 union select 7 union select 8 union select 9) t,
+        (select 0 union select 1 union select 2 union select 3 union select 4 union select 5 union select 6 union select 7 union select 8 union select 9) t2, 
+        (select 0 union select 1 union select 2 union select 3 union select 4 union select 5 union select 6 union select 7 union select 8 union select 9) t3
+        ) tt
+    order by tt.row 
+    limit 1000  
+) as potentials;
+--
+insert into check_integers
+select *
+from base_integers;
+--
+--  Now go through the rows and do the divisions on numbers <= to the value of each row
+--
+set @out_primes = '';
+select
+    group_concat(work_int separator '&')
+from
+(
+    select 
+        work_int,
+        num_divisors
+    from
+    (
+        select
+            work_int,
+            (
+                select
+                    sum(divis)
+                from
+                (select
+                    if(floor(base_integers.work_int/c_int)*c_int = base_integers.work_int,1,0) as divis
+                 from check_integers
+                 where c_int <= base_integers.work_int
+                ) as check_lower
+            ) as num_divisors
+        from base_integers
+    ) as all_divisors
+    where num_divisors = 2
+) all_primes
+
+```
+
+```sql
+set @row_num  = 0;
+set @max_row = (select count(*) from Projects);
+set @cur_project = 1;
+
+
+create table ProjectCopy
+select Task_ID, rn, prev_rn, start_date, end_date
+from
+(
+    select
+        Task_ID,
+        (@row_num := @row_num + 1) as rn,
+        if(@row_num - 1 > 0, @row_num - 1, 0) as prev_rn,
+        Start_date,
+        end_date
+    from
+        Projects
+    order by end_date
+) as IncludeRN;
+
+create table JoinCopy
+select *
+from ProjectCopy;
+
+--  Do a left Join
+create table joinedData
+select *
+from
+(
+    Select 
+        ProjectCopy.Task_ID as task_id, 
+        ProjectCopy.rn as rn, 
+        ProjectCopy.prev_rn as prev_rn, 
+        ProjectCopy.start_date as start_date, 
+        ProjectCopy.end_date as end_date,
+        JoinCopy.end_date as prev_end_date
+    from
+        ProjectCopy
+    left Join
+        JoinCopy
+    on ProjectCopy.prev_rn = JoinCopy.rn
+) as leftjoined;
+
+-- select * from JoinedData;
+-- Now Assign project numbers
+select
+    start_date,
+    end_date
+from
+(
+    select
+        min(start_date) as start_date,
+        max(end_date) as end_date,
+        datediff(max(end_date),min(start_date)) as project_days
+    from
+    (
+        select 
+            Task_ID, rn, prev_rn, start_date, end_date, prev_end_date,
+            (case
+                when prev_rn = 0 then @cur_project
+                when datediff(end_date, prev_end_date) >1 then @cur_project := @cur_project + 1
+                else @cur_project
+            end)as project_number
+        from JoinedData
+    ) as projectData
+    group by project_number
+    order by project_days, start_date
+)as orderedprojects
+```
+
+# Kinda Cool for keeping two different sums correct.
+```sql
+--
+select
+    Contests.contest_id as contest_id,
+    hacker_id,
+    name,
+    sts,
+    stas,
+    stv,
+    stuv
+from
+    Contests
+join
+(
+    select
+        sum_sub.contest_id as contest_id,
+        sts,
+        stas,
+        stv,
+        stuv
+    from
+    (
+        select 
+            contest_id,
+            sum(ts) as sts,
+            sum(tas) as stas
+        from
+        (
+            select
+                CC.contest_id as contest_id,
+                CC.challenge_id as challenge_id,
+                total_submissions as ts,
+                total_accepted_submissions as tas
+            from
+            (
+                select
+                    Colleges.contest_id as contest_id,
+                    Challenges.challenge_id as challenge_id
+                from
+                Colleges
+                join
+                    Challenges
+                on Colleges.college_id = Challenges.college_id
+                order by contest_id
+            ) as CC
+            join
+                Submission_stats
+            on CC.challenge_id = submission_stats.challenge_id
+        ) as CCS
+        group by contest_id
+        order by contest_id
+    ) as sum_sub
+    join
+    (
+        select
+            contest_id,
+            sum(tv) as stv,
+            sum(tuv) as stuv
+        from
+        (
+            select
+                CC.contest_id as contest_id,
+                CC.challenge_id as challenge_id,
+                total_views as tv,
+                total_unique_views as tuv
+            from
+            (
+                select
+                    Colleges.contest_id as contest_id,
+                    Challenges.challenge_id as challenge_id
+                from
+                Colleges
+                join
+                    Challenges
+                on Colleges.college_id = Challenges.college_id
+                order by contest_id
+            ) as CC
+            join
+                view_stats
+            on CC.challenge_id = view_stats.challenge_id
+        ) as CCV
+        group by contest_id
+        order by contest_id
+    ) as sum_view
+    on sum_sub.contest_id = sum_view.contest_id
+) as allsums
+on Contests.contest_id = allsums.contest_id
+order by contest_id
+```
+
+#  THe Harder One
+
+```sql
+
+Select distinct
+    CombinedInformation.sdo as sdo,
+    CombinedInformation.hacker_id,
+    Hackers.name
+from
+    Hackers
+join
+(
+    select 
+        DHCount.submission_date as sdo,
+        unique_hackers,
+        DetailInfo.hacker_id as hacker_id,
+        DetailInfo.tot_subs as tot_subs
+    from
+    (
+        select
+            submission_date,
+            count(hacker_id) as unique_hackers
+        from
+        (
+                select distinct
+                    submission_date,
+                    hacker_id
+                from
+                    Submissions
+                order by submission_date asc
+            ) as DH
+            group by submission_date
+    ) as DHCount
+    join
+    (
+        select
+            sdo,
+            hacker_id,
+            tot_subs
+        from
+        (
+            select 
+                MinID.sdo as sdo,
+                MinID.min_hacker_id as min_hacker_id,
+                MaxSubs.hacker_id as hacker_id,
+                maxSubs.tot_subs as tot_subs
+            from
+            (
+                select
+                sdo,
+                min(hacker_id) as min_hacker_id
+                from
+                (
+                    select 
+                        sdo,
+                        hacker_id,
+                        tot_subs,
+                        max_total_subs
+                    from
+                    (
+                        select
+                            SHSCount. submission_date as sdo,
+                            hacker_id,
+                            tot_subs,
+                            MaxSubByDate.max_tot_subs as max_total_subs
+                        from
+                        (
+                            select
+                                submission_date,
+                                hacker_id,
+                                count(submission_id) as tot_subs
+                            from
+                            (
+                                select
+                                    submission_date,
+                                    hacker_id,
+                                    submission_id
+                                from
+                                    Submissions
+                                order by submission_date asc, hacker_id asc
+                            ) as SHS
+                            group by submission_date, hacker_id
+                            order by submission_date, tot_subs desc, hacker_id asc
+                        ) as SHSCount
+                        join
+                        (
+                            select
+                                submission_date,
+                                max(tot_subs) as max_tot_subs
+                            from
+                            (
+                                select
+                                    submission_date,
+                                    hacker_id,
+                                    count(submission_id) as tot_subs
+                                from
+                                (
+                                    select
+                                        submission_date,
+                                        hacker_id,
+                                        submission_id
+                                    from
+                                        Submissions
+                                    order by submission_date asc, hacker_id asc
+                                ) as SHS
+                                group by submission_date, hacker_id
+                                order by submission_date, tot_subs desc, hacker_id asc
+                            ) as SHSC
+                            group by submission_date
+                            order by submission_date
+                        ) as MaxSubByDate
+                        on SHSCount.submission_date = MaxSubByDate.submission_date
+                    ) as MaxInfo
+                    where tot_subs = max_total_subs
+                    order by sdo asc, hacker_id asc
+                ) as FindMinID
+                group by sdo
+            ) as MinID
+            join
+            (
+                select 
+                    sdo,
+                    hacker_id,
+                    tot_subs,
+                    max_total_subs
+                from
+                (
+                    select
+                        SHSCount. submission_date as sdo,
+                        hacker_id,
+                        tot_subs,
+                        MaxSubByDate.max_tot_subs as max_total_subs
+                    from
+                    (
+                        select
+                            submission_date,
+                            hacker_id,
+                            count(submission_id) as tot_subs
+                        from
+                        (
+                            select
+                                submission_date,
+                                hacker_id,
+                                submission_id
+                            from
+                                Submissions
+                            order by submission_date asc, hacker_id asc
+                        ) as SHS
+                        group by submission_date, hacker_id
+                        order by submission_date, tot_subs desc, hacker_id asc
+                    ) as SHSCount
+                    join
+                    (
+                        select
+                            submission_date,
+                            max(tot_subs) as max_tot_subs
+                        from
+                        (
+                            select
+                                submission_date,
+                                hacker_id,
+                                count(submission_id) as tot_subs
+                            from
+                            (
+                                select
+                                    submission_date,
+                                    hacker_id,
+                                    submission_id
+                                from
+                                    Submissions
+                                order by submission_date asc, hacker_id asc
+                            ) as SHS
+                            group by submission_date, hacker_id
+                            order by submission_date, tot_subs desc, hacker_id asc
+                        ) as SHSC
+                        group by submission_date
+                        order by submission_date
+                    ) as MaxSubByDate
+                    on SHSCount.submission_date = MaxSubByDate.submission_date
+                ) as MaxInfo
+                where tot_subs = max_total_subs
+                order by sdo asc, hacker_id asc
+            ) as maxSubs
+        ) as goodInfo
+        where goodInfo.min_hacker_id = goodInfo.hacker_id
+    ) as DetailInfo
+    on DHCount.submission_date = DetailInfo.sdo
+) as CombinedInformation
+on CombinedInformation.hacker_id = Hackers.hacker_id
+order by sdo asc
+```
