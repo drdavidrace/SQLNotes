@@ -1262,8 +1262,12 @@ order by contest_id
 
 #  THe Harder One
 
-```sql
+This one is a little bit harder since it is looking for two sets of information.  I get  to use
+my workstation this next week, so it might go faster.
 
+
+```sql
+--  First information
 Select distinct
     CombinedInformation.sdo as sdo,
     CombinedInformation.hacker_id,
@@ -1450,4 +1454,52 @@ join
 ) as CombinedInformation
 on CombinedInformation.hacker_id = Hackers.hacker_id
 order by sdo asc
+```
+
+```sql
+set @min_date = (select min(submission_date) from Submissions);
+set @max_date = (select max(submission_date) from Submissions);
+set @row_num =0;
+set @first_group_row = 0;
+set @first_group_date = Null;
+set @current_hacker = -1;
+
+select
+    submission_date, number_submits, hacker_id, 
+    (@row_num := @row_num + 1) as rn,
+    if(hacker_id <> @current_hacker, (@first_group_date := submission_date), 0) as update_first_group_date,
+    if(hacker_id <> @current_hacker, (@first_group_row := @row_num),0) as update_first_group_row,
+    if(hacker_id <> @current_hacker, submission_date, @first_group_date) as first_group_date,
+    if(hacker_id <> @current_hacker, (@first_group_row := @row_num), @first_group_row) as first_group_row,
+    if(hacker_id <> @current_hacker, (@current_hacker := hacker_id), @current_hacker) as update_current_hacker
+from
+(
+    select
+        submission_date,
+        number_submits,
+        hacker_id
+    from
+        (
+            select
+                Submissions.submission_date as submission_date,
+                sub_counts.number_submits as number_submits,
+                Submissions.hacker_id as hacker_id,
+                score
+            from Submissions
+            join
+            (
+                select
+                    submission_date,
+                    count(*) as number_submits,
+                    hacker_id
+                from Submissions
+                group by hacker_id, submission_date
+                order by hacker_id, submission_date
+            ) sub_counts
+            on Submissions.submission_date = sub_counts.submission_date and
+                Submissions.hacker_id = sub_counts.hacker_id
+        ) as InitData
+    group by hacker_id, submission_date
+    order by hacker_id, submission_date
+) as NiceData
 ```
