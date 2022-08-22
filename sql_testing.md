@@ -1265,137 +1265,58 @@ order by contest_id
 This one is a little bit harder since it is looking for two sets of information.  I get  to use
 my workstation this next week, so it might go faster.
 
+This gets to date, minimum hacker id with the maxiumum number of submittals per date.
 
 ```sql
 --  First information
-Select distinct
-    CombinedInformation.sdo as sdo,
-    CombinedInformation.hacker_id,
-    Hackers.name
-from
-    Hackers
-join
 (
-    select 
-        DHCount.submission_date as sdo,
-        unique_hackers,
-        DetailInfo.hacker_id as hacker_id,
-        DetailInfo.tot_subs as tot_subs
+    select
+        sdo, 
+        min_hacker_id,
+        name
     from
     (
         select
-            submission_date,
-            count(hacker_id) as unique_hackers
-        from
-        (
-                select distinct
-                    submission_date,
-                    hacker_id
-                from
-                    Submissions
-                order by submission_date asc
-            ) as DH
-            group by submission_date
-    ) as DHCount
-    join
-    (
-        select
             sdo,
-            hacker_id,
-            tot_subs
+            min(hacker_id) as min_hacker_id
         from
         (
             select 
-                MinID.sdo as sdo,
-                MinID.min_hacker_id as min_hacker_id,
-                MaxSubs.hacker_id as hacker_id,
-                maxSubs.tot_subs as tot_subs
+                sdo,
+                hacker_id,
+                tot_subs,
+                max_total_subs
             from
             (
                 select
-                sdo,
-                min(hacker_id) as min_hacker_id
-                from
-                (
-                    select 
-                        sdo,
-                        hacker_id,
-                        tot_subs,
-                        max_total_subs
-                    from
-                    (
-                        select
-                            SHSCount. submission_date as sdo,
-                            hacker_id,
-                            tot_subs,
-                            MaxSubByDate.max_tot_subs as max_total_subs
-                        from
-                        (
-                            select
-                                submission_date,
-                                hacker_id,
-                                count(submission_id) as tot_subs
-                            from
-                            (
-                                select
-                                    submission_date,
-                                    hacker_id,
-                                    submission_id
-                                from
-                                    Submissions
-                                order by submission_date asc, hacker_id asc
-                            ) as SHS
-                            group by submission_date, hacker_id
-                            order by submission_date, tot_subs desc, hacker_id asc
-                        ) as SHSCount
-                        join
-                        (
-                            select
-                                submission_date,
-                                max(tot_subs) as max_tot_subs
-                            from
-                            (
-                                select
-                                    submission_date,
-                                    hacker_id,
-                                    count(submission_id) as tot_subs
-                                from
-                                (
-                                    select
-                                        submission_date,
-                                        hacker_id,
-                                        submission_id
-                                    from
-                                        Submissions
-                                    order by submission_date asc, hacker_id asc
-                                ) as SHS
-                                group by submission_date, hacker_id
-                                order by submission_date, tot_subs desc, hacker_id asc
-                            ) as SHSC
-                            group by submission_date
-                            order by submission_date
-                        ) as MaxSubByDate
-                        on SHSCount.submission_date = MaxSubByDate.submission_date
-                    ) as MaxInfo
-                    where tot_subs = max_total_subs
-                    order by sdo asc, hacker_id asc
-                ) as FindMinID
-                group by sdo
-            ) as MinID
-            join
-            (
-                select 
-                    sdo,
+                    SHSCount. submission_date as sdo,
                     hacker_id,
                     tot_subs,
-                    max_total_subs
+                    MaxSubByDate.max_tot_subs as max_total_subs
                 from
                 (
                     select
-                        SHSCount. submission_date as sdo,
+                        submission_date,
                         hacker_id,
-                        tot_subs,
-                        MaxSubByDate.max_tot_subs as max_total_subs
+                        count(submission_id) as tot_subs
+                    from
+                    (
+                        select
+                            submission_date,
+                            hacker_id,
+                            submission_id
+                        from
+                            Submissions
+                        order by submission_date asc, hacker_id asc
+                    ) as SHS
+                    group by submission_date, hacker_id
+                    order by submission_date, tot_subs desc, hacker_id asc
+                ) as SHSCount
+                join
+                (
+                    select
+                        submission_date,
+                        max(tot_subs) as max_tot_subs
                     from
                     (
                         select
@@ -1414,49 +1335,29 @@ join
                         ) as SHS
                         group by submission_date, hacker_id
                         order by submission_date, tot_subs desc, hacker_id asc
-                    ) as SHSCount
-                    join
-                    (
-                        select
-                            submission_date,
-                            max(tot_subs) as max_tot_subs
-                        from
-                        (
-                            select
-                                submission_date,
-                                hacker_id,
-                                count(submission_id) as tot_subs
-                            from
-                            (
-                                select
-                                    submission_date,
-                                    hacker_id,
-                                    submission_id
-                                from
-                                    Submissions
-                                order by submission_date asc, hacker_id asc
-                            ) as SHS
-                            group by submission_date, hacker_id
-                            order by submission_date, tot_subs desc, hacker_id asc
-                        ) as SHSC
-                        group by submission_date
-                        order by submission_date
-                    ) as MaxSubByDate
-                    on SHSCount.submission_date = MaxSubByDate.submission_date
-                ) as MaxInfo
-                where tot_subs = max_total_subs
-                order by sdo asc, hacker_id asc
-            ) as maxSubs
-        ) as goodInfo
-        where goodInfo.min_hacker_id = goodInfo.hacker_id
-    ) as DetailInfo
-    on DHCount.submission_date = DetailInfo.sdo
-) as CombinedInformation
-on CombinedInformation.hacker_id = Hackers.hacker_id
-order by sdo asc
+                    ) as SHSC
+                    group by submission_date
+                    order by submission_date
+                ) as MaxSubByDate
+                on SHSCount.submission_date = MaxSubByDate.submission_date
+            ) as MaxInfo
+            where tot_subs = max_total_subs
+            order by sdo asc, hacker_id asc
+        ) as FindMinHacker
+        group by sdo
+        order by sdo
+    ) as FinalMinHacker
+    join
+        Hackers
+    on
+        Hackers.hacker_id = FinalMinHacker.min_hacker_id
+) as FinalMinHackerMaxSubs
 ```
 
+This obtains the number of people who had continuous submissions from the start of the contest, by date
+
 ```sql
+--
 set @min_date = (select min(submission_date) from Submissions);
 set @max_date = (select max(submission_date) from Submissions);
 set @row_num =0;
@@ -1464,42 +1365,230 @@ set @first_group_row = 0;
 set @first_group_date = Null;
 set @current_hacker = -1;
 
-select
-    submission_date, number_submits, hacker_id, 
-    (@row_num := @row_num + 1) as rn,
-    if(hacker_id <> @current_hacker, (@first_group_date := submission_date), 0) as update_first_group_date,
-    if(hacker_id <> @current_hacker, (@first_group_row := @row_num),0) as update_first_group_row,
-    if(hacker_id <> @current_hacker, submission_date, @first_group_date) as first_group_date,
-    if(hacker_id <> @current_hacker, (@first_group_row := @row_num), @first_group_row) as first_group_row,
-    if(hacker_id <> @current_hacker, (@current_hacker := hacker_id), @current_hacker) as update_current_hacker
-from
 (
     select
         submission_date,
-        number_submits,
-        hacker_id
+        sum(continuous_dates) as number_continuous
     from
+    (
+        select
+            submission_date, hacker_id,
+            (case
+                when (first_group_date = @min_date) and 
+                    (rn - first_group_row) = datediff(submission_date,first_group_date) then True
+                else False
+                end
+            ) as continuous_dates
+        from
         (
             select
-                Submissions.submission_date as submission_date,
-                sub_counts.number_submits as number_submits,
-                Submissions.hacker_id as hacker_id,
-                score
-            from Submissions
-            join
+                submission_date, number_submits, hacker_id, 
+                (@row_num := @row_num + 1) as rn,
+                if(hacker_id <> @current_hacker, (@first_group_date := submission_date), 0) as update_first_group_date,
+                if(hacker_id <> @current_hacker, (@first_group_row := @row_num),0) as update_first_group_row,
+                if(hacker_id <> @current_hacker, submission_date, @first_group_date) as first_group_date,
+                if(hacker_id <> @current_hacker, (@first_group_row := @row_num), @first_group_row) as first_group_row,
+                if(hacker_id <> @current_hacker, (@current_hacker := hacker_id), @current_hacker) as update_current_hacker
+            from
             (
                 select
                     submission_date,
-                    count(*) as number_submits,
+                    number_submits,
                     hacker_id
-                from Submissions
+                from
+                    (
+                        select
+                            Submissions.submission_date as submission_date,
+                            sub_counts.number_submits as number_submits,
+                            Submissions.hacker_id as hacker_id,
+                            score
+                        from Submissions
+                        join
+                        (
+                            select
+                                submission_date,
+                                count(*) as number_submits,
+                                hacker_id
+                            from Submissions
+                            group by hacker_id, submission_date
+                            order by hacker_id, submission_date
+                        ) sub_counts
+                        on Submissions.submission_date = sub_counts.submission_date and
+                            Submissions.hacker_id = sub_counts.hacker_id
+                    ) as InitData
                 group by hacker_id, submission_date
                 order by hacker_id, submission_date
-            ) sub_counts
-            on Submissions.submission_date = sub_counts.submission_date and
-                Submissions.hacker_id = sub_counts.hacker_id
-        ) as InitData
-    group by hacker_id, submission_date
-    order by hacker_id, submission_date
-) as NiceData
+            ) as NiceDate
+        ) as Continuous
+    ) NumContinuousByDate
+    group by submission_date
+    order by submission_date
+) as FinalContiuousByDate
+```
+
+Now we need to combine the two parts using a simple join on the dates.  Kinda cool and included below:
+
+```sql
+--
+set @min_date = (select min(submission_date) from Submissions);
+set @max_date = (select max(submission_date) from Submissions);
+set @row_num =0;
+set @first_group_row = 0;
+set @first_group_date = Null;
+set @current_hacker = -1;
+--
+--  This part gets the person who had the most submittals by date
+--
+select
+    sdo, 
+    number_continuous,
+    min_hacker_id,
+    name
+from
+(
+    select
+        sdo, 
+        min_hacker_id,
+        name
+    from
+    (
+        select
+            sdo,
+            min(hacker_id) as min_hacker_id
+        from
+        (
+            select 
+                sdo,
+                hacker_id,
+                tot_subs,
+                max_total_subs
+            from
+            (
+                select
+                    SHSCount. submission_date as sdo,
+                    hacker_id,
+                    tot_subs,
+                    MaxSubByDate.max_tot_subs as max_total_subs
+                from
+                (
+                    select
+                        submission_date,
+                        hacker_id,
+                        count(submission_id) as tot_subs
+                    from
+                    (
+                        select
+                            submission_date,
+                            hacker_id,
+                            submission_id
+                        from
+                            Submissions
+                        order by submission_date asc, hacker_id asc
+                    ) as SHS
+                    group by submission_date, hacker_id
+                    order by submission_date, tot_subs desc, hacker_id asc
+                ) as SHSCount
+                join
+                (
+                    select
+                        submission_date,
+                        max(tot_subs) as max_tot_subs
+                    from
+                    (
+                        select
+                            submission_date,
+                            hacker_id,
+                            count(submission_id) as tot_subs
+                        from
+                        (
+                            select
+                                submission_date,
+                                hacker_id,
+                                submission_id
+                            from
+                                Submissions
+                            order by submission_date asc, hacker_id asc
+                        ) as SHS
+                        group by submission_date, hacker_id
+                        order by submission_date, tot_subs desc, hacker_id asc
+                    ) as SHSC
+                    group by submission_date
+                    order by submission_date
+                ) as MaxSubByDate
+                on SHSCount.submission_date = MaxSubByDate.submission_date
+            ) as MaxInfo
+            where tot_subs = max_total_subs
+            order by sdo asc, hacker_id asc
+        ) as FindMinHacker
+        group by sdo
+        order by sdo
+    ) as FinalMinHacker
+    join
+        Hackers
+    on
+        Hackers.hacker_id = FinalMinHacker.min_hacker_id
+) as FinalMinHackerMaxSubs
+join               
+(
+    select
+        submission_date,
+        sum(continuous_dates) as number_continuous
+    from
+    (
+        select
+            submission_date, hacker_id,
+            (case
+                when (first_group_date = @min_date) and 
+                    (rn - first_group_row) = datediff(submission_date,first_group_date) then True
+                else False
+                end
+            ) as continuous_dates
+        from
+        (
+            select
+                submission_date, number_submits, hacker_id, 
+                (@row_num := @row_num + 1) as rn,
+                if(hacker_id <> @current_hacker, (@first_group_date := submission_date), 0) as update_first_group_date,
+                if(hacker_id <> @current_hacker, (@first_group_row := @row_num),0) as update_first_group_row,
+                if(hacker_id <> @current_hacker, submission_date, @first_group_date) as first_group_date,
+                if(hacker_id <> @current_hacker, (@first_group_row := @row_num), @first_group_row) as first_group_row,
+                if(hacker_id <> @current_hacker, (@current_hacker := hacker_id), @current_hacker) as update_current_hacker
+            from
+            (
+                select
+                    submission_date,
+                    number_submits,
+                    hacker_id
+                from
+                    (
+                        select
+                            Submissions.submission_date as submission_date,
+                            sub_counts.number_submits as number_submits,
+                            Submissions.hacker_id as hacker_id,
+                            score
+                        from Submissions
+                        join
+                        (
+                            select
+                                submission_date,
+                                count(*) as number_submits,
+                                hacker_id
+                            from Submissions
+                            group by hacker_id, submission_date
+                            order by hacker_id, submission_date
+                        ) sub_counts
+                        on Submissions.submission_date = sub_counts.submission_date and
+                            Submissions.hacker_id = sub_counts.hacker_id
+                    ) as InitData
+                group by hacker_id, submission_date
+                order by hacker_id, submission_date
+            ) as NiceDate
+        ) as Continuous
+    ) NumContinuousByDate
+    group by submission_date
+    order by submission_date
+) as FinalContinuousByDate
+on
+    FinalContinuousByDate.submission_date = FinalMinHackerMaxSubs.sdo
+order by sdo
 ```
